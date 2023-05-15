@@ -2,42 +2,53 @@
 
 import { Line } from 'svelte-chartjs'
 import 'chart.js/auto';
+import { Chart } from 'chart.js';
 import { onMount } from "svelte"
 
 export let urlParams
 
 let url = 'https://ssb-server.vercel.app/api/kpi' + urlParams
 
-let output
+let output,
+    updated = "",
+    percentaged = false
+
+Chart.defaults.font.family = "Open Sans"
+Chart.defaults.color = "#292827"
 
 let options = {
     type: 'line',
     maintainAspectRatio: false,
+    interaction: {
+        intersect: false,
+        axis: 'x',
+        mode: 'nearest'
+    },
     elements: {
         line: {
             tension: 0.3
         },
         point: {
             hitRadius: 6,
-            hoverRadius: 6
-            // pointStyle: false
+            hoverRadius: 6,
+            radius: 0
         }
     },
     scales: {
         x: {
-            grid: {
-                display: false
-            },
             ticks: {
                 callback: function(value, index, ticks) {
-                    if (index != ticks.length -1) return value + '%';
+                    let d = new Date(this.getLabelForValue(value))
+                    if (value == 0 || d.getMonth() == 0) return d.toLocaleDateString('nb-NO', { year: 'numeric', month: "short" })
+                    else return d.toLocaleDateString('nb-NO', { month: "short" })
                 }
             }
         },
         y: {
             ticks: {
                 callback: function(value, index, ticks) {
-                    if (index != ticks.length -1) return value + '%';
+                    if (percentaged) return value + '%'
+                    else return value
                 }
             }
         }
@@ -46,7 +57,7 @@ let options = {
         legend: {
             labels: {
                 boxWidth: 10,
-                boxHeight: 10,
+                boxHeight: 1,
                 borderRadius: 50,
                 font: {
                     size: 14
@@ -74,12 +85,14 @@ let options = {
 let colors = ['rgb(64,102,25)', 'rgb(25,60,102)', 'rgb(181,42,24)']
 
 function populate(data) {
+    if (data.groups[0].base) percentaged = true
+    updated = new Date(data.updated)
     output = {
         labels: data.x,
         datasets: data.groups.map((group, index) => {
             return {
                 label: group.name,
-                data: group.data.map(value => ((value / group.base) - 1) * 100),
+                data: percentaged ? group.data.map(value => ((value / group.base) - 1) * 100) : group.data,
                 borderColor: colors[index]
             }
         })
@@ -90,6 +103,7 @@ onMount(async () => {
     fetch(url)
     .then(r => r.json())
     .then(d => {
+        console.log(d)
         populate(d)
     })
     .catch(e => console.log(e))
@@ -98,11 +112,21 @@ onMount(async () => {
 </script>
 
 <h2>Prisvekst siden invasjonen av Ukraina</h2>
-<p>Trykk på varekategoriene for å legge til eller fjerne fra diagramet.</p>
-<div><Line data={output} width={100} height={500} options={options} /></div>
+<p class=description>Trykk på varekategoriene for å legge til eller fjerne fra diagramet.</p>
+<div class=canvas-container><Line data={output} options={options} /></div>
+<div class=credits>Kilde: SSB. Oppdatert {updated != "" ? updated.toLocaleDateString('nb-NO', { year: 'numeric', month: 'long', day: 'numeric' }) : "Kunne ikke hente tidspunkt."}. Utvikling: Jarand Ullestad/Nationen.</div>
 
 <style>
-p {
+.description {
     margin-block: 10px;
+}
+.canvas-container {
+    flex: 1;
+    min-height: 300px;
+}
+.credits {
+    margin-top: 10px;
+    font-size: 11px;
+    color: #888;
 }
 </style>
